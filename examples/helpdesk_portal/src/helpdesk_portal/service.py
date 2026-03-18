@@ -45,10 +45,12 @@ class HelpdeskService:
         customer_tier: CustomerTier = "standard",
         created_hour: int = 0,
     ) -> Ticket:
+        if not title or not title.strip():
+            raise ValueError("Ticket title must not be empty")
         self._counter += 1
         ticket = Ticket(
             id=f"T-{self._counter:04d}",
-            title=title,
+            title=title.strip(),
             priority=priority,
             customer_tier=customer_tier,
             created_hour=created_hour,
@@ -114,8 +116,20 @@ class HelpdeskService:
         self._tickets[ticket_id] = updated
         return updated
 
-    def queue_snapshot(self) -> list[Ticket]:
+    def queue_snapshot(self, assignee: str | None = None) -> list[Ticket]:
         open_tickets = [ticket for ticket in self._tickets.values() if ticket.is_open]
+        
+        if assignee is not None:
+            normalized_assignee = assignee.strip()
+            if normalized_assignee:
+                open_tickets = [
+                    ticket for ticket in open_tickets 
+                    if ticket.assignee == normalized_assignee
+                ]
+            else:
+                # Empty or whitespace-only assignee treated as None (no filtering)
+                pass
+        
         return sorted(open_tickets, key=self._queue_sort_key)
 
     def workload_summary(self) -> dict[str, dict[str, int]]:

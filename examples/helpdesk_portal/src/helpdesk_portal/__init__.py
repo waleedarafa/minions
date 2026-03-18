@@ -1,7 +1,8 @@
-from .models import Ticket, TicketPriority, TicketStatus
+from .models import CustomerTier, Ticket, TicketPriority, TicketStatus
 from .service import HelpdeskService
 
 __all__ = [
+    "CustomerTier",
     "HelpdeskService",
     "Ticket",
     "TicketPriority",
