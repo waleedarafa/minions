@@ -6,6 +6,13 @@ from pydantic import BaseModel
 from .service import service
 
 
+class CreateItemRequest(BaseModel):
+    sku: str
+    name: str
+    quantity: int = 0
+    reorder_point: int = 0
+
+
 class RestockRequest(BaseModel):
     quantity: int
 
@@ -40,6 +47,29 @@ def list_items() -> list[dict[str, object]]:
         }
         for item in service.list_items()
     ]
+
+
+@app.post("/items", status_code=201)
+def create_item(payload: CreateItemRequest) -> dict[str, object]:
+    try:
+        item = service.create_item(
+            sku=payload.sku,
+            name=payload.name,
+            quantity=payload.quantity,
+            reorder_point=payload.reorder_point,
+        )
+    except ValueError as exc:
+        # Map duplicate SKU to 409, other validation errors to 400
+        status_code = 409 if "already exists" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return {
+        "sku": item.sku,
+        "name": item.name,
+        "quantity": item.quantity,
+        "reorder_point": item.reorder_point,
+        "in_stock": item.in_stock,
+        "low_stock": item.low_stock,
+    }
 
 
 @app.get("/items/{sku}")

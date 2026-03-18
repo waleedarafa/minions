@@ -96,3 +96,129 @@ def test_bulk_restock_rejects_non_positive_quantities() -> None:
     )
     assert response.status_code == 400
     assert "must be positive" in response.json()["detail"]
+
+
+def test_create_item_returns_201_on_success() -> None:
+    response = client.post(
+        "/items",
+        json={
+            "sku": "SKU-NEW",
+            "name": "New Item",
+            "quantity": 10,
+            "reorder_point": 5,
+        },
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["sku"] == "SKU-NEW"
+    assert payload["name"] == "New Item"
+    assert payload["quantity"] == 10
+    assert payload["reorder_point"] == 5
+    assert payload["in_stock"] is True
+    assert payload["low_stock"] is False
+
+
+def test_create_item_with_defaults() -> None:
+    response = client.post(
+        "/items",
+        json={
+            "sku": "SKU-DEFAULTS",
+            "name": "Item with Defaults",
+        },
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["sku"] == "SKU-DEFAULTS"
+    assert payload["name"] == "Item with Defaults"
+    assert payload["quantity"] == 0
+    assert payload["reorder_point"] == 0
+    assert payload["in_stock"] is False
+    assert payload["low_stock"] is True
+
+
+def test_create_item_returns_409_for_duplicate_sku() -> None:
+    response = client.post(
+        "/items",
+        json={
+            "sku": "SKU-1",
+            "name": "Duplicate Item",
+            "quantity": 5,
+            "reorder_point": 2,
+        },
+    )
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+
+
+def test_create_item_returns_400_for_empty_name() -> None:
+    response = client.post(
+        "/items",
+        json={
+            "sku": "SKU-EMPTY-NAME",
+            "name": "",
+            "quantity": 5,
+            "reorder_point": 2,
+        },
+    )
+    assert response.status_code == 400
+    assert "Name cannot be empty" in response.json()["detail"]
+
+
+def test_create_item_returns_400_for_whitespace_only_name() -> None:
+    response = client.post(
+        "/items",
+        json={
+            "sku": "SKU-WHITESPACE-NAME",
+            "name": "   ",
+            "quantity": 5,
+            "reorder_point": 2,
+        },
+    )
+    assert response.status_code == 400
+    assert "Name cannot be empty" in response.json()["detail"]
+
+
+def test_create_item_returns_400_for_negative_quantity() -> None:
+    response = client.post(
+        "/items",
+        json={
+            "sku": "SKU-NEG-QTY",
+            "name": "Negative Quantity Item",
+            "quantity": -5,
+            "reorder_point": 2,
+        },
+    )
+    assert response.status_code == 400
+    assert "Quantity cannot be negative" in response.json()["detail"]
+
+
+def test_create_item_returns_400_for_negative_reorder_point() -> None:
+    response = client.post(
+        "/items",
+        json={
+            "sku": "SKU-NEG-REORDER",
+            "name": "Negative Reorder Point Item",
+            "quantity": 5,
+            "reorder_point": -2,
+        },
+    )
+    assert response.status_code == 400
+    assert "Reorder point cannot be negative" in response.json()["detail"]
+
+
+def test_create_item_response_includes_computed_flags() -> None:
+    response = client.post(
+        "/items",
+        json={
+            "sku": "SKU-FLAGS",
+            "name": "Item with Flags",
+            "quantity": 5,
+            "reorder_point": 10,
+        },
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert "in_stock" in payload
+    assert "low_stock" in payload
+    assert payload["in_stock"] is True
+    assert payload["low_stock"] is True  # quantity (5) <= reorder_point (10)
