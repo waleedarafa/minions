@@ -150,3 +150,176 @@ def test_unknown_ticket_lookup_raises_clear_error() -> None:
         assert "Unknown ticket" in str(exc)
     else:
         raise AssertionError("Expected unknown ticket lookup to fail")
+
+
+def test_queue_snapshot_filters_by_assignee() -> None:
+    service = HelpdeskService()
+    
+    # Create tickets with different assignees and priorities
+    alice_urgent = service.create_ticket("Alice urgent", priority="urgent")
+    alice_normal = service.create_ticket("Alice normal", priority="normal")
+    bob_high = service.create_ticket("Bob high", priority="high")
+    service.create_ticket("Unassigned urgent", priority="urgent")  # remains unassigned
+    
+    # Assign tickets
+    service.assign_ticket(alice_urgent.id, "alice", current_hour=1)
+    service.assign_ticket(alice_normal.id, "alice", current_hour=2)
+    service.assign_ticket(bob_high.id, "bob", current_hour=3)
+    
+    # Test filtering by alice - should return alice's tickets sorted by priority
+    alice_queue = service.queue_snapshot(assignee="alice")
+    assert len(alice_queue) == 2
+    assert [ticket.id for ticket in alice_queue] == [alice_urgent.id, alice_normal.id]
+    
+    # Test filtering by bob - should return only bob's ticket
+    bob_queue = service.queue_snapshot(assignee="bob")
+    assert len(bob_queue) == 1
+    assert bob_queue[0].id == bob_high.id
+    
+    # Test filtering by non-existent assignee - should return empty list
+    empty_queue = service.queue_snapshot(assignee="charlie")
+    assert len(empty_queue) == 0
+
+
+def test_queue_snapshot_preserves_default_behavior_when_assignee_none() -> None:
+    service = HelpdeskService()
+    
+    # Create the same tickets as in the original test
+    low = service.create_ticket("Low standard", priority="low", customer_tier="standard")
+    premium_high = service.create_ticket(
+        "High premium",
+        priority="high",
+        customer_tier="premium",
+    )
+    enterprise_high = service.create_ticket(
+        "High enterprise",
+        priority="high",
+        customer_tier="enterprise",
+    )
+    urgent = service.create_ticket("Urgent standard", priority="urgent", customer_tier="standard")
+    
+    # Assign some tickets to verify unassigned tickets are still included
+    service.assign_ticket(premium_high.id, "alice", current_hour=1)
+    
+    # Test that default behavior (assignee=None) returns all open tickets
+    queue_default = service.queue_snapshot()
+    queue_explicit_none = service.queue_snapshot(assignee=None)
+    
+    # Both should return the same results
+    assert len(queue_default) == 4
+    assert len(queue_explicit_none) == 4
+    assert [ticket.id for ticket in queue_default] == [ticket.id for ticket in queue_explicit_none]
+    
+    # Verify sorting is still correct
+    assert [ticket.id for ticket in queue_default] == [
+        urgent.id,
+        enterprise_high.id,
+        premium_high.id,
+        low.id,
+    ]
+
+
+def test_queue_snapshot_assignee_filtering_preserves_sorting() -> None:
+    service = HelpdeskService()
+    
+    # Create tickets for alice with different priorities and customer tiers
+    alice_low_standard = service.create_ticket(
+        "Alice low standard", 
+        priority="low", 
+        customer_tier="standard",
+        created_hour=1
+    )
+    alice_high_premium = service.create_ticket(
+        "Alice high premium", 
+        priority="high", 
+        customer_tier="premium",
+        created_hour=2
+    )
+    alice_high_enterprise = service.create_ticket(
+        "Alice high enterprise", 
+        priority="high", 
+        customer_tier="enterprise",
+        created_hour=3
+    )
+    alice_urgent_standard = service.create_ticket(
+        "Alice urgent standard", 
+        priority="urgent", 
+        customer_tier="standard",
+        created_hour=4
+    )
+    
+    # Assign all tickets to alice
+    service.assign_ticket(alice_low_standard.id, "alice", current_hour=5)
+    service.assign_ticket(alice_high_premium.id, "alice", current_hour=6)
+    service.assign_ticket(alice_high_enterprise.id, "alice", current_hour=7)
+    service.assign_ticket(alice_urgent_standard.id, "alice", current_hour=8)
+    
+    # Get alice's queue
+    alice_queue = service.queue_snapshot(assignee="alice")
+    
+    # Verify sorting: urgent first, then high (enterprise before premium), then low
+    assert [ticket.id for ticket in alice_queue] == [
+        alice_urgent_standard.id,
+        alice_high_enterprise.id,
+        alice_high_premium.id,
+        alice_low_standard.id,
+    ]
+
+
+def test_queue_snapshot_assignee_whitespace_handling() -> None:
+    service = HelpdeskService()
+    
+    # Create tickets
+    alice_ticket = service.create_ticket("Alice ticket")
+    bob_ticket = service.create_ticket("Bob ticket")
+    
+    # Assign tickets (assign_ticket already strips whitespace)
+    service.assign_ticket(alice_ticket.id, "  alice  ", current_hour=1)
+    service.assign_ticket(bob_ticket.id, "bob", current_hour=2)
+    
+    # Test that queue_snapshot also handles whitespace consistently
+    alice_queue_with_spaces = service.queue_snapshot(assignee="  alice  ")
+    alice_queue_no_spaces = service.queue_snapshot(assignee="alice")
+    
+    # Both should return alice's ticket
+    assert len(alice_queue_with_spaces) == 1
+    assert len(alice_queue_no_spaces) == 1
+    assert alice_queue_with_spaces[0].id == alice_ticket.id
+    assert alice_queue_no_spaces[0].id == alice_ticket.id
+
+
+def test_queue_snapshot_empty_assignee_returns_empty_list() -> None:
+    service = HelpdeskService()
+    
+    # Create tickets with various assignees
+    alice_ticket = service.create_ticket("Alice ticket")
+    service.create_ticket("Unassigned ticket")  # remains unassigned
+    
+    service.assign_ticket(alice_ticket.id, "alice", current_hour=1)
+    
+    # Test that empty string and whitespace-only assignee return empty list
+    empty_queue = service.queue_snapshot(assignee="")
+    whitespace_queue = service.queue_snapshot(assignee="   ")
+    
+    assert len(empty_queue) == 0
+    assert len(whitespace_queue) == 0
+
+
+def test_queue_snapshot_excludes_resolved_tickets_with_assignee_filter() -> None:
+    service = HelpdeskService()
+    
+    # Create tickets for alice
+    alice_open = service.create_ticket("Alice open")
+    alice_resolved = service.create_ticket("Alice resolved")
+    
+    # Assign both tickets to alice
+    service.assign_ticket(alice_open.id, "alice", current_hour=1)
+    service.assign_ticket(alice_resolved.id, "alice", current_hour=2)
+    
+    # Resolve one ticket
+    service.update_status(alice_resolved.id, "resolved", current_hour=3)
+    
+    # Alice's queue should only include the open ticket
+    alice_queue = service.queue_snapshot(assignee="alice")
+    assert len(alice_queue) == 1
+    assert alice_queue[0].id == alice_open.id

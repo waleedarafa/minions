@@ -114,8 +114,20 @@ class HelpdeskService:
         self._tickets[ticket_id] = updated
         return updated
 
-    def queue_snapshot(self) -> list[Ticket]:
+    def queue_snapshot(self, assignee: str | None = None) -> list[Ticket]:
         open_tickets = [ticket for ticket in self._tickets.values() if ticket.is_open]
+        
+        if assignee is not None:
+            # Normalize assignee by stripping whitespace, consistent with assign_ticket behavior
+            normalized_assignee = assignee.strip()
+            # Filter for tickets assigned to the specified user
+            # Empty string after stripping should not match any tickets (including unassigned ones)
+            if normalized_assignee:
+                open_tickets = [ticket for ticket in open_tickets if ticket.assignee == normalized_assignee]
+            else:
+                # If assignee is empty string or whitespace-only, return empty list
+                open_tickets = []
+        
         return sorted(open_tickets, key=self._queue_sort_key)
 
     def workload_summary(self) -> dict[str, dict[str, int]]:
