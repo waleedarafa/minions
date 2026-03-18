@@ -75,5 +75,21 @@ class InventoryService:
             self._items[sku] = updated
         return [updated for _, updated in updates]
 
+    def create_item(
+        self, sku: str, name: str, quantity: int = 0, reorder_point: int = 0
+    ) -> InventoryItem:
+        if sku in self._items:
+            raise ValueError(f"SKU already exists: {sku}")
+        if not name or not name.strip():
+            raise ValueError("Name is required and cannot be empty")
+        if quantity < 0:
+            raise ValueError("Quantity must be non-negative")
+        if reorder_point < 0:
+            raise ValueError("Reorder point must be non-negative")
+
+        item = InventoryItem(sku=sku, name=name, quantity=quantity, reorder_point=reorder_point)
+        self._items[sku] = item
+        return item
+
 
 service = InventoryService()
