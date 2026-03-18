@@ -10,6 +10,13 @@ class RestockRequest(BaseModel):
     quantity: int
 
 
+class CreateItemRequest(BaseModel):
+    sku: str
+    name: str
+    quantity: int = 0
+    reorder_point: int = 0
+
+
 class BulkRestockItem(BaseModel):
     sku: str
     quantity: int
@@ -40,6 +47,30 @@ def list_items() -> list[dict[str, object]]:
         }
         for item in service.list_items()
     ]
+
+
+@app.post("/items", status_code=201)
+def create_item(payload: CreateItemRequest) -> dict[str, object]:
+    try:
+        item = service.create_item(
+            sku=payload.sku,
+            name=payload.name,
+            quantity=payload.quantity,
+            reorder_point=payload.reorder_point,
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        if "already exists" in detail:
+            raise HTTPException(status_code=409, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc
+    return {
+        "sku": item.sku,
+        "name": item.name,
+        "quantity": item.quantity,
+        "reorder_point": item.reorder_point,
+        "in_stock": item.in_stock,
+        "low_stock": item.low_stock,
+    }
 
 
 @app.get("/items/{sku}")

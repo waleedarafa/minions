@@ -49,6 +49,19 @@ class InventoryService:
         self._items[sku] = updated
         return updated
 
+    def create_item(self, sku: str, name: str, quantity: int, reorder_point: int) -> InventoryItem:
+        if sku in self._items:
+            raise ValueError(f"SKU already exists: {sku}")
+        if not name or not name.strip():
+            raise ValueError("Item name must not be empty")
+        if quantity < 0:
+            raise ValueError("Quantity must not be negative")
+        if reorder_point < 0:
+            raise ValueError("Reorder point must not be negative")
+        item = InventoryItem(sku=sku, name=name.strip(), quantity=quantity, reorder_point=reorder_point)
+        self._items[sku] = item
+        return item
+
     def bulk_restock(self, items: list[dict[str, int]]) -> list[InventoryItem]:
         seen_skus: set[str] = set()
         updates: list[tuple[str, InventoryItem]] = []

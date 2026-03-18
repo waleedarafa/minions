@@ -45,6 +45,63 @@ def test_restock_rejects_non_positive_quantity() -> None:
     assert "must be positive" in response.json()["detail"]
 
 
+def test_create_item_returns_201_with_item() -> None:
+    response = client.post(
+        "/items",
+        json={"sku": "SKU-NEW", "name": "Webcam", "quantity": 10, "reorder_point": 3},
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["sku"] == "SKU-NEW"
+    assert payload["name"] == "Webcam"
+    assert payload["quantity"] == 10
+    assert payload["reorder_point"] == 3
+    assert payload["in_stock"] is True
+    assert payload["low_stock"] is False
+
+
+def test_create_item_defaults_quantity_and_reorder_point() -> None:
+    response = client.post("/items", json={"sku": "SKU-DEF", "name": "Headset"})
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["quantity"] == 0
+    assert payload["reorder_point"] == 0
+    assert payload["in_stock"] is False
+
+
+def test_create_item_rejects_duplicate_sku() -> None:
+    response = client.post(
+        "/items",
+        json={"sku": "SKU-1", "name": "Duplicate Keyboard"},
+    )
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+
+
+def test_create_item_rejects_empty_name() -> None:
+    response = client.post("/items", json={"sku": "SKU-EMPTY", "name": ""})
+    assert response.status_code == 400
+    assert "must not be empty" in response.json()["detail"]
+
+
+def test_create_item_rejects_negative_quantity() -> None:
+    response = client.post(
+        "/items",
+        json={"sku": "SKU-NEG", "name": "Bad Item", "quantity": -5},
+    )
+    assert response.status_code == 400
+    assert "must not be negative" in response.json()["detail"]
+
+
+def test_create_item_rejects_negative_reorder_point() -> None:
+    response = client.post(
+        "/items",
+        json={"sku": "SKU-NEG2", "name": "Bad Item", "reorder_point": -1},
+    )
+    assert response.status_code == 400
+    assert "must not be negative" in response.json()["detail"]
+
+
 def test_bulk_restock_updates_multiple_skus_in_request_order() -> None:
     before_sku_2 = client.get("/items/SKU-2").json()
     before_sku_3 = client.get("/items/SKU-3").json()
