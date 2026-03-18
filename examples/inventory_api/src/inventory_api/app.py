@@ -19,6 +19,13 @@ class BulkRestockRequest(BaseModel):
     items: list[BulkRestockItem]
 
 
+class CreateItemRequest(BaseModel):
+    sku: str
+    name: str
+    quantity: int = 0
+    reorder_point: int = 0
+
+
 app = FastAPI(title="Inventory API Example")
 
 
@@ -48,6 +55,29 @@ def get_item(sku: str) -> dict[str, object]:
         item = service.get_item(sku)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "sku": item.sku,
+        "name": item.name,
+        "quantity": item.quantity,
+        "reorder_point": item.reorder_point,
+        "in_stock": item.in_stock,
+        "low_stock": item.low_stock,
+    }
+
+
+@app.post("/items", status_code=201)
+def create_item(payload: CreateItemRequest) -> dict[str, object]:
+    try:
+        item = service.create_item(
+            sku=payload.sku,
+            name=payload.name,
+            quantity=payload.quantity,
+            reorder_point=payload.reorder_point,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
         "sku": item.sku,
         "name": item.name,
