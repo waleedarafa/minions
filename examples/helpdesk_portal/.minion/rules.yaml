@@ -1,0 +1,7 @@
+rules:
+  - text: "Prefer explicit dataclasses and small service methods over heavy abstractions."
+    scope: "**"
+  - text: "Preserve the existing priority order: urgent, high, normal, low."
+    scope: "src/helpdesk_portal/**/*.py"
+  - text: "New behavior must be covered with focused pytest tests in tests/test_service.py."
+    scope: "tests/**/*.py"

@@ -1,0 +1,18 @@
+{
+  "description": "Add POST /restock/bulk to the inventory API. Accept a list of {sku, quantity}, reject duplicate SKUs, reject non-positive quantities, return 404 for unknown SKUs, keep route logic thin, and update the API tests.",
+  "repo": "examples/inventory_api",
+  "blueprint": "default",
+  "branch_base": "main",
+  "priority": "high",
+  "rules_override": [
+    "Keep FastAPI route logic thin and validate payloads explicitly."
+  ],
+  "tools": [
+    "read_file",
+    "edit_file",
+    "create_file",
+    "grep_search",
+    "glob_search",
+    "run_command"
+  ]
+}

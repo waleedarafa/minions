@@ -1,0 +1,69 @@
+name: fix_and_verify
+description: "Fix bugs then run deterministic verification steps with conditional retry on failure"
+max_ci_rounds: 2
+max_tokens: 200000
+max_wall_clock_seconds: 600
+
+steps:
+  - name: hydrate_context
+    type: deterministic
+    action: load_rules_and_tools
+
+  - name: create_branch
+    type: deterministic
+    action: git_create_branch
+
+  - name: fix
+    type: agentic
+    prompt: "Read main.py, identify all bugs, and fix them one by one using edit_file. Do not run the code — a separate verification step will do that after you are done."
+    tools: [read_file, edit_file, list_files]
+    max_iterations: 20
+
+  - name: run_linter
+    type: deterministic
+    action: run_linters
+    timeout: 30s
+
+  - name: verify
+    type: deterministic
+    action: run_tests
+    timeout: 30s
+
+  - name: prepare_fix
+    type: deterministic
+    condition: ci_failed
+    action: mark_fix_attempted
+
+  - name: fix_failures
+    type: agentic
+    condition: ci_failed
+    prompt: "The deterministic verification steps failed. Review the output and fix the remaining issues."
+    tools: [read_file, edit_file, run_command, grep_search]
+    max_iterations: 20
+
+  - name: reset_for_reverify
+    type: deterministic
+    condition: fix_attempted
+    action: reset_ci_status
+
+  - name: re_lint
+    type: deterministic
+    condition: fix_attempted
+    action: run_linters
+    timeout: 30s
+
+  - name: re_verify
+    type: deterministic
+    condition: fix_attempted
+    action: run_tests
+    timeout: 30s
+
+  - name: commit_and_push
+    type: deterministic
+    condition: not_ci_failed
+    action: git_commit_and_push
+
+  - name: open_pr
+    type: deterministic
+    condition: not_ci_failed
+    action: create_pull_request

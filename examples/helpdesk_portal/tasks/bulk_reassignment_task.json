@@ -1,0 +1,18 @@
+{
+  "description": "Add bulk_reassign_tickets(ticket_ids, assignee, current_hour) to the helpdesk service. Reject blank assignees, reject unknown ticket ids, reject resolved tickets, preserve input order, and update tests.",
+  "repo": "examples/helpdesk_portal",
+  "blueprint": "default",
+  "branch_base": "main",
+  "priority": "high",
+  "rules_override": [
+    "Keep the public service API small and test-first."
+  ],
+  "tools": [
+    "read_file",
+    "edit_file",
+    "create_file",
+    "grep_search",
+    "glob_search",
+    "run_command"
+  ]
+}

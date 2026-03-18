@@ -1,0 +1,49 @@
+name: database_migration
+description: "Blueprint for creating and applying database migrations"
+max_ci_rounds: 2
+max_tokens: 150000
+max_wall_clock_seconds: 1800
+
+steps:
+  - name: hydrate_context
+    type: deterministic
+    action: load_rules_and_tools
+
+  - name: analyze_schema
+    type: agentic
+    prompt: "Analyze the current database schema and models. Understand the existing migration history and identify what needs to change."
+    tools: [read_file, glob_search, grep_search, list_files]
+    max_iterations: 20
+
+  - name: create_migration
+    type: agentic
+    prompt: "Create the database migration file. Follow the project's migration patterns exactly. Ensure up and down migrations are both correct."
+    tools: [read_file, create_file, edit_file, glob_search, run_command]
+    max_iterations: 30
+
+  - name: validate_migration
+    type: agentic
+    prompt: "Validate the migration by reviewing it against the models. Check for: correct column types, proper indexes, data integrity, reversibility."
+    tools: [read_file, edit_file, run_command]
+    max_iterations: 15
+
+  - name: run_tests
+    type: deterministic
+    action: run_linters
+    timeout: 60s
+
+  - name: push_and_ci
+    type: deterministic
+    action: git_push_and_trigger_ci
+
+  - name: handle_ci_failures
+    type: agentic
+    prompt: "Fix migration CI failures. Look for: incorrect SQL syntax, missing foreign keys, type mismatches."
+    tools: [read_file, edit_file, run_command, grep_search]
+    max_iterations: 20
+    condition: ci_failed
+
+  - name: create_pr
+    type: deterministic
+    action: create_pull_request
+    template: migration_pr_template

@@ -1,0 +1,158 @@
+name: default
+description: "Default blueprint for general coding tasks: plan, implement, verify, PR"
+max_ci_rounds: 2
+max_tokens: 200000
+max_wall_clock_seconds: 3600
+
+steps:
+  - name: hydrate_context
+    type: deterministic
+    action: load_rules_and_tools
+
+  - name: create_branch
+    type: deterministic
+    action: git_create_branch
+
+  - name: plan
+    type: agentic
+    prompt: |
+      Explore the codebase and produce a detailed implementation plan for the requested task.
+      Use the repository overview first and inspect only the minimum additional files needed.
+      Do not repeatedly read the same file.
+      Use at most 6 tool calls before writing the plan unless you are blocked.
+      If the requested feature already exists, say that explicitly and explain what evidence shows it is already satisfied.
+      Do NOT write any code yet — planning only.
+      Your plan must include:
+      1. Files to create (with purpose of each)
+      2. Files to modify (with what changes and why)
+      3. Key functions/classes to add
+      4. Edge cases and error handling to consider
+      5. How the new code integrates with existing code
+      Output the plan as a structured markdown document.
+    # jira_get_issue, jira_search_issues are available when an MCP Jira server is configured
+    tools: [read_file, list_files, grep_search, glob_search, git_log, git_status, jira_get_issue, jira_search_issues]
+    max_iterations: 10
+
+  - name: implement
+    type: agentic
+    prompt: |
+      Implement the requested changes by following the plan provided below.
+      Use the repository overview and the plan before doing more exploration.
+      Do not repeatedly read unchanged files.
+      If the task is already satisfied, make no edits and state that clearly with the evidence you checked.
+      - Create new files or edit existing ones as needed using create_file and edit_file.
+      - Follow the existing code style and conventions.
+      - Do not run the code — a separate verification step will do that after you are done.
+      - When done, provide a brief summary of all files created or modified.
+    tools: [read_file, edit_file, create_file, delete_file, list_files, grep_search, glob_search]
+    max_iterations: 50
+
+  - name: run_linter
+    type: deterministic
+    action: run_linters
+    timeout: 60s
+
+  - name: verify
+    type: deterministic
+    action: run_tests
+    timeout: 60s
+
+  - name: prepare_fix
+    type: deterministic
+    condition: ci_failed
+    action: mark_fix_attempted
+
+  - name: fix_failures
+    type: agentic
+    condition: ci_failed
+    prompt: |
+      The verification steps failed. Review the output below and fix the issues.
+      Use run_command to investigate further if needed.
+    tools: [read_file, edit_file, run_command, grep_search, glob_search]
+    max_iterations: 20
+
+  - name: reset_for_reverify
+    type: deterministic
+    condition: fix_attempted
+    action: reset_ci_status
+
+  - name: re_lint
+    type: deterministic
+    condition: fix_attempted
+    action: run_linters
+    timeout: 60s
+
+  - name: re_verify
+    type: deterministic
+    condition: fix_attempted
+    action: run_tests
+    timeout: 60s
+
+  - name: reset_fix_state
+    type: deterministic
+    condition: not_ci_failed
+    action: reset_fix_tracking
+
+  - name: commit_and_push
+    type: deterministic
+    condition: not_ci_failed
+    action: git_commit_and_push
+
+  - name: first_ci_round
+    type: deterministic
+    condition: last_push_succeeded
+    action: wait_for_ci
+    timeout: 1800s
+
+  - name: apply_ci_autofixes
+    type: deterministic
+    condition: autofixes_available
+    action: apply_autofixes
+
+  - name: prepare_ci_fix
+    type: deterministic
+    condition: ci_failed
+    action: mark_fix_attempted
+
+  - name: handle_ci_failures
+    type: agentic
+    condition: ci_failed
+    prompt: |
+      CI Round 1 failed after the branch was pushed.
+      Use the CI output and parsed failure summaries below to fix the remaining issues.
+      Prefer targeted fixes over broad refactors.
+    tools: [read_file, edit_file, run_command, grep_search, glob_search]
+    max_iterations: 20
+
+  - name: reset_for_final_verify
+    type: deterministic
+    condition: fix_attempted
+    action: reset_ci_status
+
+  - name: final_lint
+    type: deterministic
+    condition: fix_attempted
+    action: run_linters
+    timeout: 60s
+
+  - name: final_verify
+    type: deterministic
+    condition: fix_attempted
+    action: run_tests
+    timeout: 60s
+
+  - name: commit_and_push_final
+    type: deterministic
+    condition: fix_attempted_and_not_ci_failed
+    action: git_commit_and_push
+
+  - name: second_ci_round
+    type: deterministic
+    condition: fix_attempted_and_not_ci_failed
+    action: wait_for_ci
+    timeout: 1800s
+
+  - name: open_pr
+    type: deterministic
+    condition: branch_pushed
+    action: create_pull_request

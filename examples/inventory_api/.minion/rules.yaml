@@ -1,0 +1,7 @@
+rules:
+  - text: Keep FastAPI routes thin and push behavior into the service layer.
+    scope: "**"
+  - text: Preserve response keys and HTTP status codes unless tests are updated intentionally.
+    scope: "src/inventory_api/**/*.py"
+  - text: Route behavior changes must be covered in tests/test_app.py.
+    scope: "tests/**/*.py"

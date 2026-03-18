@@ -1,0 +1,44 @@
+name: flaky_test_fix
+description: "Blueprint for investigating and fixing flaky tests"
+max_ci_rounds: 2
+max_tokens: 150000
+max_wall_clock_seconds: 2400
+
+steps:
+  - name: hydrate_context
+    type: deterministic
+    action: load_rules_and_tools
+
+  - name: investigate_flakiness
+    type: agentic
+    prompt: "Investigate the flaky test. Read the test code, understand what it tests, identify timing issues, shared state, external dependencies, or non-deterministic behavior."
+    tools: [read_file, grep_search, glob_search, git_log, git_blame, run_tests]
+    max_iterations: 25
+
+  - name: implement_fix
+    type: agentic
+    prompt: "Fix the flaky test. Common fixes: add proper waits/retries, isolate shared state, mock external dependencies, fix race conditions, improve test isolation."
+    tools: [read_file, edit_file, grep_search, glob_search, run_tests, run_command]
+    max_iterations: 40
+
+  - name: verify_fix
+    type: agentic
+    prompt: "Verify the fix by running the test multiple times. Check it passes consistently."
+    tools: [run_tests, run_command, read_file]
+    max_iterations: 10
+
+  - name: push_and_ci
+    type: deterministic
+    action: git_push_and_trigger_ci
+
+  - name: handle_ci_failures
+    type: agentic
+    prompt: "Handle any remaining test failures after the fix."
+    tools: [read_file, edit_file, run_tests, run_command]
+    max_iterations: 20
+    condition: ci_failed
+
+  - name: create_pr
+    type: deterministic
+    action: create_pull_request
+    template: default_pr_template
