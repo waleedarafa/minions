@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+class DuplicateSkuError(Exception):
+    """Raised when attempting to create an item with a SKU that already exists."""
+    pass
+
+
 @dataclass(slots=True)
 class InventoryItem:
     sku: str
@@ -74,6 +79,33 @@ class InventoryService:
         for sku, updated in updates:
             self._items[sku] = updated
         return [updated for _, updated in updates]
+
+    def create_item(
+        self,
+        sku: str,
+        name: str,
+        quantity: int = 0,
+        reorder_point: int = 0,
+    ) -> InventoryItem:
+        if not sku or not sku.strip():
+            raise ValueError("SKU cannot be empty")
+        if not name or not name.strip():
+            raise ValueError("Name cannot be empty")
+        if quantity < 0:
+            raise ValueError("Quantity cannot be negative")
+        if reorder_point < 0:
+            raise ValueError("Reorder point cannot be negative")
+        if sku in self._items:
+            raise DuplicateSkuError(f"SKU already exists: {sku}")
+
+        item = InventoryItem(
+            sku=sku,
+            name=name,
+            quantity=quantity,
+            reorder_point=reorder_point,
+        )
+        self._items[sku] = item
+        return item
 
 
 service = InventoryService()

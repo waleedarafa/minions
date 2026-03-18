@@ -12,14 +12,11 @@ RUN apt-get update && apt-get install -y \
 # Install uv for fast package installation
 RUN pip install uv
 
-# Copy dependency files
-COPY pyproject.toml ./
+# Copy all source files first (needed for hatchling to find README.md)
+COPY . .
 
 # Install Python dependencies
 RUN uv pip install --system -e ".[dev]"
-
-# Copy source
-COPY . .
 
 # Default command
 CMD ["python", "-m", "src.cli.main", "--help"]
