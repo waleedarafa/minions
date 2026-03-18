@@ -102,7 +102,7 @@ steps:
     type: deterministic
     condition: last_push_succeeded
     action: wait_for_ci
-    timeout: 1800s
+    timeout: 10s
 
   - name: apply_ci_autofixes
     type: deterministic
