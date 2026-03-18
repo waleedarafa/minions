@@ -208,6 +208,41 @@ async def test_wait_for_ci_sets_failure_state_and_autofixes(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_wait_for_ci_skips_when_repo_has_no_workflows(monkeypatch):
+    from src.feedback.ci import CIResult
+
+    async def fake_wait_for_ci(repo, branch, sha=None, poll_interval=30, timeout=1800):
+        return CIResult(
+            success=True,
+            status="skipped",
+            conclusion="skipped",
+            run_id=None,
+            summary="CI skipped: no GitHub Actions workflows are configured for this repository.",
+            skipped=True,
+        )
+
+    monkeypatch.setattr("src.blueprint.nodes.deterministic.wait_for_ci", fake_wait_for_ci)
+
+    ctx = NodeContext(
+        task_description="Skip CI",
+        repo_path=".",
+        repo="org/repo",
+        branch="minion/skip-ci",
+        branch_pushed=True,
+        last_push_succeeded=True,
+        ci_failed=True,
+        autofixes_available=True,
+    )
+    result = await get_action_registry()._wait_for_ci(ctx, timeout=10)
+
+    assert result.ci_rounds == 1
+    assert result.ci_failed is False
+    assert result.autofixes_available is False
+    assert result.extra["ci_skipped"] is True
+    assert result.extra["ci_conclusion"] == "skipped"
+
+
+@pytest.mark.asyncio
 async def test_apply_autofixes_uses_registry(monkeypatch):
     class FakeRegistry:
         def apply_all(self, ci_output: str, repo_path: str) -> list[str]:

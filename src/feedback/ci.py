@@ -22,6 +22,7 @@ class CIResult:
     logs: str = ""
     summary: str = ""
     failures: list[str] | None = None
+    skipped: bool = False
 
 
 def _headers() -> dict[str, str]:
@@ -42,6 +43,17 @@ async def wait_for_ci(
     """Poll GitHub Actions until the CI run completes. Returns CIResult."""
     deadline = time.monotonic() + timeout
     async with httpx.AsyncClient(timeout=30) as client:
+        workflows = await _get_workflows(client, repo)
+        if workflows is not None and not workflows:
+            logger.info("ci_skipped_no_workflows", repo=repo)
+            return CIResult(
+                success=True,
+                status="skipped",
+                conclusion="skipped",
+                run_id=None,
+                summary="CI skipped: no GitHub Actions workflows are configured for this repository.",
+                skipped=True,
+            )
         while time.monotonic() < deadline:
             try:
                 url = f"{_API_BASE}/repos/{repo}/actions/runs"
@@ -87,6 +99,19 @@ async def wait_for_ci(
         logs="CI timed out waiting for completion",
         summary="CI timed out waiting for completion",
     )
+
+
+async def _get_workflows(client: httpx.AsyncClient, repo: str) -> list[dict] | None:
+    try:
+        resp = await client.get(
+            f"{_API_BASE}/repos/{repo}/actions/workflows",
+            headers=_headers(),
+        )
+        resp.raise_for_status()
+        return resp.json().get("workflows", [])
+    except Exception as exc:
+        logger.warning("ci_workflow_probe_failed", repo=repo, error=str(exc))
+        return None
 
 
 async def _get_logs(client: httpx.AsyncClient, repo: str, run_id: str) -> str:

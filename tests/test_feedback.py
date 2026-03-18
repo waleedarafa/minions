@@ -261,3 +261,43 @@ def test_render_pr_body_supports_rich_sections() -> None:
     assert "All green." in body
     assert "## Testing" in body
     assert "Local verification attempted: yes" in body
+
+
+@pytest.mark.asyncio
+async def test_wait_for_ci_skips_when_github_actions_are_not_configured(monkeypatch) -> None:
+    from src.feedback.ci import wait_for_ci
+
+    class FakeResponse:
+        def __init__(self, payload: dict[str, Any]) -> None:
+            self._payload = payload
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, Any]:
+            return self._payload
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        async def get(self, url: str, headers=None, params=None):
+            if url.endswith("/actions/workflows"):
+                return FakeResponse({"workflows": []})
+            raise AssertionError(f"unexpected url: {url}")
+
+    monkeypatch.setattr("src.feedback.ci.httpx.AsyncClient", FakeAsyncClient)
+
+    result = await wait_for_ci("org/repo", "minion/test", timeout=1)
+
+    assert result.success is True
+    assert result.status == "skipped"
+    assert result.conclusion == "skipped"
+    assert result.skipped is True
+    assert "no GitHub Actions workflows" in result.summary

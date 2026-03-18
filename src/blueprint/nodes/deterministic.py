@@ -360,6 +360,7 @@ class DeterministicActionRegistry:
         ctx.extra["ci_run_id"] = result.run_id
         ctx.extra["ci_summary"] = result.summary
         ctx.extra["ci_output"] = result.logs
+        ctx.extra["ci_skipped"] = result.skipped
         ctx.last_push_succeeded = False
 
         failures = []
@@ -370,7 +371,10 @@ class DeterministicActionRegistry:
             ctx.extra["ci_failures_summary"] = summarize_failures(failures)
 
         if result.success:
-            logger.info("ci_passed", run_id=result.run_id)
+            if result.skipped:
+                logger.info("ci_skipped", repo=ctx.repo, branch=ctx.branch)
+            else:
+                logger.info("ci_passed", run_id=result.run_id)
             ctx.ci_failed = False
             ctx.autofixes_available = False
             return ctx
